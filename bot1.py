@@ -24,6 +24,14 @@ MENU = {
     '4': {'name': 'Салат Креветочный', 'price': 30, 'photo': '/home/Dants12/telegram_bot/img/crab.jpg', 'ingridients': 'Рис, свежий огурец, кукуруза, морковь, яйцо, креветка'},
 }
 
+'''
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['cart'] = []
+    await update.message.reply_text(
+        "Добро пожаловать в наш магазин готовой еды! 🚀",
+        reply_markup=main_menu_keyboard()
+    )
+'''
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Сохраняем корзину
     context.user_data['cart'] = []
@@ -41,6 +49,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Добро пожаловать в наш магазин готовой еды! 🚀",
         reply_markup=main_menu_keyboard()
     )
+
 def main_menu_keyboard():
     return ReplyKeyboardMarkup(
         [
@@ -51,7 +60,30 @@ def main_menu_keyboard():
         resize_keyboard=True
     )
 
+'''
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for key, item in MENU.items():
+        with open(item['photo'], 'rb') as photo:
+            await context.bot.send_photo(
+                chat_id=update.effective_chat.id,
+                photo=photo,
+                caption=f"{item['name']}\nЦена: {item['price']} EUR\nСостав: {item['ingridients']}",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton(f"Добавить {item['name']}", callback_data=f"add_{key}")
+                ]])
+            )
+'''
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сохраняем информацию о пользователе в файл
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    first_name = update.effective_user.first_name or "Unknown"
+
+    with open("user_activity_log.txt", "a") as file:
+        file.write(f"{user_id},{username},{first_name},нажал 'Меню'\n")
+
+    # Отправляем пользователю меню
     for key, item in MENU.items():
         with open(item['photo'], 'rb') as photo:
             await context.bot.send_photo(
