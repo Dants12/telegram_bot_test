@@ -147,7 +147,27 @@ async def save_address(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+'''
+async def handle_payment_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
+    if query.data == "paypal_payment":
+        await query.edit_message_text(
+            "💳 Вы выбрали оплату через PayPal.\n"
+            "👉 [Перейти к оплате через PayPal](https://paypal.com)\\.\n"  # Экранируем точку после URL
+            "После оплаты отправьте подтверждение командой /confirm_payment.",
+            parse_mode="MarkdownV2"  # Используем MarkdownV2 для правильной обработки
+        )
+    elif query.data == "bank_transfer":
+        await query.edit_message_text(
+            "🏦 Реквизиты для перевода:\n\n"
+            "💳 Номер карты: **1234 5678 9012 3456**\n"
+            "Получатель: Karina Usane\n\n"
+            "После оплаты отправьте подтверждение командой /confirm_payment.",
+            parse_mode="MarkdownV2"  # Используем MarkdownV2 для правильной обработки
+        )
+'''
 async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Спасибо за подтверждение оплаты! Мы свяжемся с вами для уточнения деталей.")
     await context.bot.send_message(
