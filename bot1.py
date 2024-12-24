@@ -25,12 +25,22 @@ MENU = {
 }
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Сохраняем корзину
     context.user_data['cart'] = []
+
+    # Сохраняем ID пользователя и имя в файл
+    user_id = update.effective_user.id
+    username = update.effective_user.username or "Unknown"
+    first_name = update.effective_user.first_name or "Unknown"
+
+    with open("user_ids.txt", "a") as file:
+        file.write(f"{user_id},{username},{first_name}\n")
+
+    # Отправляем приветственное сообщение
     await update.message.reply_text(
         "Добро пожаловать в наш магазин готовой еды! 🚀",
         reply_markup=main_menu_keyboard()
     )
-
 def main_menu_keyboard():
     return ReplyKeyboardMarkup(
         [
