@@ -1,5 +1,6 @@
 import os
 import asyncio
+import sqlite3
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
     ReplyKeyboardMarkup, KeyboardButton
@@ -14,6 +15,9 @@ load_dotenv()
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 GROUP_ID = os.getenv('GROUP_ID')
 
+# База данных
+DB_PATH = "bot_data.db"
+
 DELIVERY_DATES = ['2024-12-23', '2024-12-24', '2024-12-25', '2024-12-26', '2024-12-27', '2024-12-28', '2024-12-29', '2024-12-30', '2024-12-31']  # Пример данных для выбора даты
 DELIVERY_TIMES = ['08:00 - 10:00', '10:00 - 12:00', '12:00 - 14:00', '14:00 - 17:00', '17:00 - 21:00']  # Пример данных для выбора времени
 
@@ -23,6 +27,68 @@ MENU = {
     '3': {'name': 'Салат Мимоза', 'price': 25, 'photo': '/home/Dants12/telegram_bot/img/mimosa.jpg', 'ingridients': 'Картофель, яйцо, морковь, сыр, лук, тунец'},
     '4': {'name': 'Салат Креветочный', 'price': 30, 'photo': '/home/Dants12/telegram_bot/img/crab.jpg', 'ingridients': 'Рис, свежий огурец, кукуруза, морковь, яйцо, креветка'},
 }
+
+# Инициализация базы данных
+def initialize_database():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            first_name TEXT,
+            last_name TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS carts (
+            user_id INTEGER,
+            item_id TEXT,
+            quantity INTEGER,
+            FOREIGN KEY(user_id) REFERENCES users(user_id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def add_user(user_id, username, first_name, last_name):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR IGNORE INTO users (user_id, username, first_name, last_name)
+        VALUES (?, ?, ?, ?)
+    ''', (user_id, username, first_name, last_name))
+    conn.commit()
+    conn.close()
+
+def add_to_cart(user_id, item_id, quantity):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO carts (user_id, item_id, quantity)
+        VALUES (?, ?, ?)
+    ''', (user_id, item_id, quantity))
+    conn.commit()
+    conn.close()
+
+def get_cart(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT item_id, quantity FROM carts WHERE user_id = ?
+    ''', (user_id,))
+    cart = cursor.fetchall()
+    conn.close()
+    return cart
+
+def clear_cart(user_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM carts WHERE user_id = ?
+    ''', (user_id,))
+    conn.commit()
+    conn.close()
 
 '''
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -45,6 +111,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file.write(f"{user_id},{username},{first_name}\n")
 
     # Отправляем приветственное сообщение
+    user = update.effective_user
+    add_user(user.id, user.username, user.first_name, user.last_name)
     await update.message.reply_text(
         "Добро пожаловать в наш магазин готовой еды! 🚀",
         reply_markup=main_menu_keyboard()
@@ -95,6 +163,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ]])
             )
 
+'''
 async def add_to_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -113,6 +182,17 @@ async def add_to_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_caption(
         f"{item['name']} добавлено в корзину 🛒\nКоличество: {context.user_data['cart'][item_id]['quantity']}"
     )
+'''
+
+async def add_to_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    item_id = query.data.split('_')[1]
+    add_to_cart(query.from_user.id, item_id, 1)
+
+    await query.edit_message_caption(f"{item['name']} добавлено в корзину 🛒\nКоличество: {context.user_data['cart'][item_id]['quantity']}")#(f"Товар добавлен в корзину 🛒")
+
 
 async def choose_delivery_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:  # Теперь мы обрабатываем сообщение, а не callback
@@ -217,6 +297,23 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text=f"🔔 Пользователь @{update.effective_user.username} подтвердил оплату. Проверьте поступление средств."
     )
 
+
+async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cart = get_cart(update.effective_user.id)
+    if not cart:
+        await update.message.reply_text("Ваша корзина пуста.")
+        return
+
+    cart_text = "Ваша корзина:\n"
+    total_price = 0
+    for item_id, quantity in cart:
+        item = MENU[item_id]
+        cart_text += f"- {item['name']} x{quantity} — {item['price'] * quantity} EUR\n"
+        total_price += item['price'] * quantity
+
+    cart_text += f"\nИтого: {total_price} EUR"
+    await update.message.reply_text(cart_text)
+'''
 async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cart = context.user_data.get('cart', {})
     if not cart:
@@ -232,7 +329,36 @@ async def view_cart(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cart_text += f"\n💰 Общая сумма: {total_sum} EUR"
     await update.message.reply_text(cart_text)
+'''
 
+async def clear_cart_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    clear_cart(update.effective_user.id)
+    await update.message.reply_text("Корзина очищена.")
+
+async def checkout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cart = get_cart(update.effective_user.id)
+    if not cart:
+        await update.message.reply_text("Ваша корзина пуста. Добавьте товары перед оформлением заказа.")
+        return
+
+    cart_text = "Ваш заказ:\n"
+    total_price = 0
+    for item_id, quantity in cart:
+        item = MENU[item_id]
+        cart_text += f"- {item['name']} x{quantity} — {item['price'] * quantity} EUR\n"
+        total_price += item['price'] * quantity
+
+    cart_text += f"\nИтого: {total_price} EUR"
+    await update.message.reply_text(f"{cart_text}\nСпасибо за ваш заказ! 🚀")
+
+    await context.bot.send_message(
+        chat_id=GROUP_ID,
+        text=f"Новый заказ от @{update.effective_user.username or 'Клиент'}:\n{cart_text}"
+    )
+
+    clear_cart(update.effective_user.id)
+
+'''
 async def process_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cart = context.user_data.get('cart', {})
     if not cart:
@@ -255,7 +381,7 @@ async def process_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=GROUP_ID,  # Отправка в группу
         text=f"🔔 Новый заказ от пользователя @{update.effective_user.username}:\n{order_summary}"
     )
-
+'''
     # Отправляем подтверждение пользователю
     await update.message.reply_text(
         "✅ Заказ успешно оформлен! Мы свяжемся с вами для подтверждения.\nСпасибо за покупку! 😊"
@@ -270,7 +396,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.Regex('📋 Меню'), menu))
     app.add_handler(MessageHandler(filters.Regex('🛒 Корзина'), view_cart))
-    app.add_handler(MessageHandler(filters.Regex('🚀 Оформить заказ'), process_order))
+    #app.add_handler(MessageHandler(filters.Regex('🚀 Оформить заказ'), process_order))
+    app.add_handler(MessageHandler(filters.Regex('🚀 Оформить заказ'), checkout))
+    app.add_handler(MessageHandler(filters.Regex('Очистить корзину'), clear_cart_command))
     app.add_handler(MessageHandler(filters.Regex('Дата и время доставки'), choose_delivery_time))
     app.add_handler(CallbackQueryHandler(add_to_cart, pattern="^add_"))
     app.add_handler(CallbackQueryHandler(request_delivery_address, pattern="^date_"))
