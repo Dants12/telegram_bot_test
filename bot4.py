@@ -634,6 +634,7 @@ def main():
     app.add_handler(CallbackQueryHandler(choose_delivery_date, pattern="^date_"))
     app.add_handler(CallbackQueryHandler(choose_delivery_time, pattern="^time_"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_delivery_address))
+    app.add_handler(CallbackQueryHandler(choose_delivery_time, pattern=r"^time_"))
     app.add_handler(CallbackQueryHandler(choose_delivery_time, pattern="^time_"))
     app.add_handler(CallbackQueryHandler(save_delivery_address, pattern="^time_"))
     #app.add_handler(CallbackQueryHandler(handle_payment_selection, pattern="^(paypal_payment|bank_transfer)$"))
